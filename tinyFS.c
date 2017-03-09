@@ -1,11 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define BLOCKSIZE 256
 
-int openDisk(char *fileName, int nBytes);
-int readBlock(int disk, int bNum, void *block);
-int writeBlock(int disk, int bNum, void *block);
+#include "tinyFS"
 
 FILE* diskArray[BLOCKSIZE];
 int diskNum;
