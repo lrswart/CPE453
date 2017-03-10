@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+<<<<<<< HEAD
+=======
+#include "tinyFS_errno.h"
+#define BLOCKSIZE 256
+>>>>>>> origin/master
 
 #include "tinyFS"
 
@@ -101,3 +106,11 @@ int writeBlock(int disk, int bNum, void *block) {
    }
    return 0;
 }
+
+int tfs_mkfs(char *filename, int nBytes) {
+   int disk = openDisk(filename, nBytes);
+   // init blocks
+   // initialize all data 0x00, set magic numbers
+   // initializing writing the superblock and inodes   
+}
+
