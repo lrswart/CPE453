@@ -1,13 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-<<<<<<< HEAD
-=======
-#include "tinyFS_errno.h"
-#define BLOCKSIZE 256
->>>>>>> origin/master
 
-#include "tinyFS"
+#include "tinyFS_errno.h"
+#include "tinyFS.h"
 
 FILE* diskArray[BLOCKSIZE];
 int diskNum;
