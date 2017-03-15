@@ -74,6 +74,7 @@ void write_indexblock(Block* block, int bNum)
    buf[0] = (*block).indexblock.blockType;
    buf[1] = (*block).indexblock.magicNum;
    buf[2] = (*block).indexblock.size;
+   buf[3] = (*block).indexblock.rw;
    memcpy(buf+4, &((*block).indexblock.fileSize), 4);
    for(i=0; i<(*block).indexblock.size; i++)
    {
@@ -89,6 +90,7 @@ void write_filedata(Block* block, int bNum)
    memset(buf, 0, BLOCKSIZE);
    buf[0] = (*block).filedata.blockType;
    buf[1] = (*block).filedata.magicNum;
+   buf[2] = (*block).filedata.indexBlock;
    
    for(i=0; i<DATA_BLOCKSIZE; i++)
    {
@@ -128,7 +130,7 @@ void read_filetable(Block* block, int bNum)
    memset(block, 0, sizeof(Block));
    readBlock(diskNum, bNum, buf);
    
-    (*block).filetable.blockType = buf[0];
+   (*block).filetable.blockType = buf[0];
    (*block).filetable.magicNum = buf[1];
    
    if((*block).filetable.blockType != 2)
@@ -166,6 +168,7 @@ void read_filedata(Block *block,  int bNum)
    
    (*block).filedata.blockType = buf[0];
    (*block).filedata.magicNum = buf[1];
+   (*block).filedata.indexBlock = buf[2];
    
    if((*block).filedata.blockType != 4)
    {
@@ -209,6 +212,7 @@ void read_indexblock(Block *block,  int bNum)
    }
    
    (*block).indexblock.size = buf[2];
+   (*block).indexblock.rw = buf[3];
    memcpy(&((*block).indexblock.fileSize), buf+4, 4); //copy 4 bytes to get an int
    for(i=0; i<(*block).indexblock.size; i++)
    {
@@ -264,8 +268,16 @@ void printBlocks(int num)
          break;
          case 3:
             read_indexblock(&block, i);
-            printf("Index Block: size = %d blocks, file size = %d bytes\n", 
+            if(block.indexblock.rw == RO)
+            {
+               printf("Index Block: size = %d blocks, file size = %d bytes, READ ONLY\n",
+                  (int)block.indexblock.size, block.indexblock.fileSize);
+            }
+            else
+            {
+               printf("Index Block: size = %d blocks, file size = %d bytes\n",
                (int)block.indexblock.size, block.indexblock.fileSize);
+            }
             for(j=0; j < block.indexblock.size; j++)
             {
                printf("virtual block index: %d  physical block: %d\n", 
@@ -275,7 +287,7 @@ void printBlocks(int num)
          break;
          case 4:
             read_filedata(&block, i);
-            printf("file data block: \n");
+            printf("file data block: index block = %d\n", (int)block.filedata.indexBlock);
             for(j=0; j<DATA_BLOCKSIZE; j++)
             {
                printf("%c", block.filedata.data[j]);
@@ -514,7 +526,7 @@ fileDescriptor tfs_openFile(char *name)
    block2.indexblock.magicNum = 0x44;
    block2.indexblock.size = 0;      //initially empty file
    block2.indexblock.fileSize = 0;
-   
+   block2.indexblock.rw = RW; //read and write permission
    //write the index block to the block pointed to in the filetable
    write_indexblock(&block2, block1.filetable.blockNum[block1.filetable.size - 1]); 
    
@@ -557,8 +569,14 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size)
       return -1; //bad FD
    }
    
-   //free up space from old file
+   //get index block from disk using resource table index block value
    read_indexblock(&block1, resourceTable[FD].indexBlock);
+   
+   if(block1.indexblock.rw == RO)
+   {
+      return -1; // this block is read only
+   }
+   //free up space from old file
    for(i=0; i<block1.indexblock.size; i++)
    {
       freeBlock(block1.indexblock.blocks[i]);
@@ -573,7 +591,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size)
    for(i=0; i<numBlocks; i++)
    {
       block1.indexblock.blocks[i] = getFreeBlock();
-      write_filedata(&block2, block1.indexblock.blocks[i]);
+      write_filedata(&block2, block1.indexblock.blocks[i]); //this line might be unecessary since we write all the file data blocks down below anyway. I don't feel like changing it and testing right now though.
    }
    
    //write updated index block to disk
@@ -592,6 +610,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size)
          memset(&block2, 0, sizeof(Block)); //clear block 2 for use
          block2.filedata.blockType = 4;
          block2.filedata.magicNum = 0x44;
+         block2.filedata.indexBlock = resourceTable[FD].indexBlock;
          memcpy(block2.filedata.data, buffer+position, DATA_BLOCKSIZE); //copy write buffer to block
         
          write_filedata(&block2, block1.indexblock.blocks[i]);   //write block to disk
@@ -603,6 +622,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size)
          memset(&block2, 0, sizeof(Block)); //clear block 2 for use
          block2.filedata.blockType = 4;
          block2.filedata.magicNum = 0x44;
+         block2.filedata.indexBlock = resourceTable[FD].indexBlock;
          memcpy(block2.filedata.data, buffer+position, size-position); //copy write buffer to block
         
          write_filedata(&block2, block1.indexblock.blocks[i]);   //write block to disk
@@ -627,8 +647,14 @@ int tfs_deleteFile(fileDescriptor FD)
       return -1; //bad FD
    }
    
-   //first free all the data blocks of the file
    read_indexblock(&block1, resourceTable[FD].indexBlock);
+   
+   if(block1.indexblock.rw == RO)
+   {
+      return -1; // this block is read only
+   }
+   
+   //first free all the data blocks of the file
    for(i=0; i<block1.indexblock.size; i++)
    {
       freeBlock(block1.indexblock.blocks[i]);
@@ -769,6 +795,106 @@ int tfs_seek(fileDescriptor FD, int offset)
    return 0;
 }
 
+int changePermission(char * name, int permission)
+{
+   int i, bNum;
+   
+   //I wish this function just took a FD, but no, gotta find the file on the disk by name
+   //this code is lifted from open file, lightly modified to change read/write permission,
+   //instead of opening the file
+   read_superblock(&block1);
+   
+   bNum = block1.superblock.fileListBlock;
+   read_filetable(&block1, block1.superblock.fileListBlock);
+
+   while(1) 
+   {
+      
+      for(i=0; i< block1.filetable.size; i++)
+      {
+         if(strlen(name) == 8 ) //string uses full 8 spaces
+         {
+            if(memcmp(block1.filetable.fileName[i], name, 8) == 0)
+            {
+               read_indexblock(&block2, block1.filetable.blockNum[i]);
+               block2.indexblock.rw = permission;
+               write_indexblock(&block2, block1.filetable.blockNum[i]);
+            }
+         }
+         else  //null terminator fits on disk
+         {
+            if(strcmp(block1.filetable.fileName[i], name) == 0)
+            {
+               read_indexblock(&block2, block1.filetable.blockNum[i]);
+               block2.indexblock.rw = permission;
+               write_indexblock(&block2, block1.filetable.blockNum[i]);
+            }
+         }
+      }
+      if(block1.filetable.next != 0)   //there is a next file table
+      {
+         bNum = block1.filetable.next;
+         read_filetable(&block1, block1.filetable.next);
+      }
+      else
+      {
+         //If the file doesn't exist, don't create one.
+         //instead, throw an error because there's no file to set the read/write permission of.
+         return -1; //file with that name does not exist
+      }
+   }
+}
 
 
+int tfs_makeRO(char* name)
+{
+   return changePermission(name, RO);
+}
 
+int tfs_makeRW(char* name)
+{
+   return changePermission(name, RW);
+}
+
+
+//writing a byte resets the file seek. I chose this behavior because it was easy and the specs don't say what to
+//do with the file seek. It makes no sense to leave it where it is though since much of the file ends up being
+//shifted by the byte that gets added
+int tfs_writeByte(fileDescriptor FD,int offset, char data)
+{
+   int i, result;
+   char *fileData;
+   
+   //we're gonna copy the whole file to a buffer, add in the one new byte at the desired position,
+   //and then write the whole thing again.
+   
+   //first get the size of the file and use it to make space in our buffer, plus one spot for new byte
+   fileData = malloc(sizeof(char) * (resourceTable[FD].fileLength + 1));
+   
+   // set the seek to the beginning of the file
+   tfs_seek(FD, 0);
+   
+   
+   for(i=0; i<offset; i++)
+   {
+      //put the next byte of the file in the buffer at position i in fileData
+      //tfs_readByte increments file position each time
+      tfs_readByte(FD, fileData+i); //check this for errors?
+   }
+   
+   fileData[offset] = data; //I dont know why they ask for data to be an int, I guess just cast it to char
+   
+   //the seek should still be set to position offset, but now we're going to be copying it
+   // one place further into the buffer. So  the file offset should equal i - 1 in this loop.
+   //if this code doesn't work, remember to check to make sure that's true, because I'm not sure
+   for(i=offset+1; i<resourceTable[FD].fileLength+1; i++)
+   {
+      tfs_readByte(FD, fileData+i);
+   }
+   
+   
+   result = tfs_writeFile(FD, fileData, resourceTable[FD].fileLength+1);
+   free(fileData);
+   return result;
+   
+}

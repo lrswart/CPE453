@@ -8,6 +8,8 @@
 #define TABLEBNUMOFFSET (8*(BLOCKSIZE-4)/9+4) //the offset to get to the start of the block numbers in the FileTable
 #define MAX_FILETABLE_SIZE ((BLOCKSIZE-4)/9)
 #define DATA_BLOCKSIZE (BLOCKSIZE-4)
+#define RO 1
+#define RW 0
 
 
 typedef int fileDescriptor;
@@ -38,6 +40,7 @@ typedef struct
    char blockType;                      // index 0, value = 3
    char magicNum;                       // index 1
    unsigned char size;                  // index 2, size of index list
+   char rw;         //index 3, value = RO (1) or RW (0) (read/write permission)
    unsigned int fileSize;               //index 4-7
    unsigned char blocks[BLOCKSIZE - 8]; // index 8
 
@@ -48,6 +51,7 @@ typedef struct
 {
    char blockType;        //index 0, value = 4
    char magicNum;         //index 1, value = 0x44
+   unsigned char indexBlock;       //index 2, value = blockNum of index block that points to this file data block
    char data[DATA_BLOCKSIZE]; //index 4
    
 } FileData;
@@ -91,5 +95,7 @@ int tfs_readByte(fileDescriptor FD, char *buffer);
 int tfs_seek(fileDescriptor FD, int offset);
 void printBlocks(int num);
 void printResources(int num);
-
+int tfs_writeByte(fileDescriptor FD,int offset, char data);
+int tfs_makeRO(char* name);
+int tfs_makeRO(char* name);
 #endif

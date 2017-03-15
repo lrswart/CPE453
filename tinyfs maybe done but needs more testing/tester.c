@@ -142,10 +142,72 @@ int main()
    
    printf("part 1 complete\n");
    
+   // Testing Read Only functions
    
-   //todo: write more tests
+   printf("\ntesting Read Only stuff........................................\n\n");
+   
+   //make files 1 and 2 like before
+   fd1 = tfs_openFile("file1");
+   fd2 = tfs_openFile("file2");
+   
+   tfs_writeFile(fd1, buf1, 500);
+   tfs_writeFile(fd2, buf1, 500);
+   
+   //make file 1 read only
+   tfs_makeRO("file1");
+   
+   printBlocks(12); //print blocks to show Read Only field
+   
+   //check that we can still read read only file fine
+   for(i=0; i<500; i++)
+   {
+      tfs_readByte(fd1, &c);
+      assert(c == buf1[i]);
+      
+      tfs_readByte(fd2, &c);
+      assert(c == buf1[i]);
+   }
+   
+   //make sure writing to read only file fails
+   if(tfs_writeFile(fd1, buf2, 150) > 0)
+   {
+      printf("wrote to a read only file\n");
+      exit(1);
+   }
+   
+   // Test give read write permission back
+   tfs_makeRW("file1");
+   
+   if(tfs_writeFile(fd1, buf2, 150) < 0)
+   {
+      printf("write to read/write permission file failed\n");
+      exit(1);
+   }
    
    
+   
+   check = tfs_writeByte(fd1, 100, 151); //write 151 in the 100th position of file1
+   assert(check == 0);
+   
+   //check first 100 bytes
+   for(i-0; i<100; i++)
+   {
+      tfs_readByte(fd1, &c);
+      assert(c == buf1[i]);
+   }
+   tfs_seek(fd1, 100); //writing a byte resets the file seek
+   //check byte at position 100
+   tfs_readByte(fd1, &c);
+   assert(c == (char)151);
+   
+   //check last 50 bytes
+   for(i=101; i<151; i++)
+   {
+      tfs_readByte(fd1, &c);
+      assert(c == (char)(i-1));
+   }
+   
+   printf("\n\nDone checking Read/Write permissions and writeByte()\n\n");
 }
 
 
