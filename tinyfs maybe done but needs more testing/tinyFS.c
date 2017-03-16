@@ -238,9 +238,11 @@ void read_freeblock(Block *block,  int bNum)
    (*block).freeblock.next = buf[2];
 }
 
-void tfs_displayFragments(int nBytes) {
-   int i, numBlocks = nBytes / BLOCKSIZE;
+void tfs_displayFragments() {
+   int i, numBlocks;
    char buffer[BLOCKSIZE];
+   
+   numBlocks = getDiskNumBlocks(diskNum);
    for (i = 0; i < numBlocks; i++) {
       readBlock(diskNum, i, buffer);
       switch(buffer[0]) {
@@ -1012,6 +1014,7 @@ int remove_freeBlock(int bNum) {
    }
    if (list == bNum) { 
       sBlock.superblock.firstFreeBlock = fBlock.freeblock.next;
+      write_superblock(&sBlock);
       return list;
    }
    
@@ -1024,6 +1027,7 @@ int remove_freeBlock(int bNum) {
       }
    }
    read_freeblock(&fBlock, list);
+   read_freeblock(&tempBlock, prev);
    tempBlock.freeblock.next = fBlock.freeblock.next;
    write_freeblock(&tempBlock, prev);
    return list;
@@ -1096,6 +1100,14 @@ void tfs_defrag() {
                   printf("Couldn't find that block number in the file table, something is wrong with either the disk or this function\n");
                }
             }
+            read_indexblock(&block1, lastB);
+            for(i=0; i<block1.indexblock.size; i++)
+            {
+               read_filedata(&block2, block1.indexblock.blocks[i]);
+               block2.filedata.indexBlock = firstF;
+               write_filedata(&block2, block1.indexblock.blocks[i]);
+            }
+            
          break;
          case 4: //file data block
             read_filedata(&block1, lastB);
@@ -1110,7 +1122,6 @@ void tfs_defrag() {
                   break;
                }
             }
-            printf("Couldn't find that block number in the index block, #RIP\n");
          break;
          case 5: //free block
             printf("okay, our last used block is a free block, which wrong. Go fix find_lsatUsedBlock()\n");
@@ -1119,12 +1130,12 @@ void tfs_defrag() {
             printf("block type value of the last used block wasn't even an actual block type\n");
          break;
       }
-      
+
       //okay, now te tables are updated and we just have to actually move the blocks
       remove_freeBlock(firstF);
+
       writeBlock(diskNum, firstF, buffer); //the buffer was filled earlier with block contents
       freeBlock(lastB);
-      
    }
    //done
 }

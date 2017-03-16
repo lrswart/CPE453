@@ -211,9 +211,10 @@ int main()
    
    printBlocks(15);
    
+   tfs_displayFragments();
    printf("Testing Defrag..................................\n\n");
    tfs_defrag();
-   
+   tfs_displayFragments();
    printBlocks(15);
    
    
