@@ -898,3 +898,168 @@ int tfs_writeByte(fileDescriptor FD,int offset, char data)
    return result;
    
 }
+
+
+//returns the block number of the last non-free block on the disk
+int find_lastUsedBlock() {
+   int i, currentBlock;
+   char buff[256];
+   int numBlocks;
+   
+   numBlocks = getDiskNumBlocks(diskNum);
+   for (i = 0; i < numBlocks; i++) {
+      readBlock(diskNum, i, buff);
+      if (buff[0] != 5) { 
+         currentBlock = i;
+      }
+   }
+   return currentBlock;
+}
+
+int find_firstFreeBlock() {
+   int i, currentBlock;
+   char buff[256];
+   int numBlocks;
+   
+   numBlocks = getDiskNumBlocks(diskNum);
+   for (i = 0; i < numBlocks; i++) {
+      readBlock(diskNum, i, buff);
+      if (buff[0] == 5) { 
+         return i;
+      }
+   }
+   return -1; //no free blocks found
+}
+
+//removes a free block at spot bNum from the free block linked list
+int remove_freeBlock(int bNum) {
+   Block fBlock;
+   Block sBlock;
+   Block tempBlock;
+   unsigned char list, prev;
+   
+   read_superblock(&sBlock);
+   list = sBlock.superblock.firstFreeBlock;
+   read_freeblock(&fBlock, bNum);
+   
+   if (list <= 0) {
+      return -1;
+   }
+   if (list == bNum) { 
+      sBlock.superblock.firstFreeBlock = fBlock.freeblock.next;
+      return list;
+   }
+   
+   while (list != bNum) {
+      prev = list;
+      read_freeblock(&fBlock, list);
+      list = fBlock.freeblock.next;
+      if (list == 0) {
+         return -1; 
+      }
+   }
+   read_freeblock(&fBlock, list);
+   tempBlock.freeblock.next = fBlock.freeblock.next;
+   write_freeblock(&tempBlock, prev);
+   return list;
+}
+
+//moves all free blocks toward the end of the disk
+void tfs_defrag() {
+   int i, lastB, firstF, numBlocks, bNum, flag;
+   char buffer[BLOCKSIZE];
+   numBlocks = getDiskNumBlocks(diskNum);
+   
+   if(find_firstFreeBlock() > find_lastUsedBlock())
+   {
+      //already defragged
+      return;
+   }
+   
+   while((firstF = find_firstFreeBlock()) < (lastB = find_lastUsedBlock()))
+   {
+      readBlock(diskNum, lastB, buffer);
+      switch(buffer[0])
+      {
+         case 1 :
+            //shouldn't be here
+            printf("last used block was the super block, but last free block was before the super block. This code is broken af\n");
+         break;
+         
+         case 2 :
+            //File Table (obviously not the first one (hopefully))
+            read_superblock(&block1);  //read superblock into block1
+            bNum = block1.superblock.fileListBlock;
+            read_filetable(&block1, bNum); //read in the first file table to block1
+            while(block1.filetable.next != lastB) //while the current file table doesn't point to the one we're gonna move
+            {
+               bNum = block1.filetable.next;
+               read_filetable(&block1, bNum); // read the next filetable on the linked list into block1
+            }
+            //block1 now has the file table that points to the one we want to move, bNum has the block number
+            block1.filetable.next = firstF;
+            write_filetable(&block1, bNum); // write updated table back to disk
+         break;
+         case 3 : //index block
+            bNum = block1.superblock.fileListBlock;
+            read_filetable(&block1, bNum); //read in the first file table to block1
+            
+            //we're gonna loop through file tables and find the matching block number and change it
+            flag = 1;
+            while(1)
+            {
+               for(i=0; i< block1.filetable.size; i++) //loop through single file table for correct block number
+               {
+                  if(block1.filetable.blockNum[i] == lastB) //if the block number matches
+                  {
+                     block1.filetable.blockNum[i] = firstF; //change it to the place that the block is going to be moved to
+                     write_filetable(&block1, bNum);
+                     flag = 0;
+                     break;
+                  }
+               }
+               if(flag == 0)  //use this flag to get out of loop once we found a match
+                  break;
+               if(block1.filetable.next != 0)   //if there is a next file table
+               {
+                  bNum = block1.filetable.next;    //
+                  read_filetable(&block1, block1.filetable.next); 
+               }
+               else
+               {
+                  //never found that inde block's block number in any file table
+                  printf("Couldn't find that block number in the file table, something is wrong with either the disk or this function\n");
+               }
+            }
+         break;
+         case 4: //file data block
+            read_filedata(&block1, lastB);
+            bNum = block1.filedata.indexBlock;
+            read_indexblock(&block1, bNum);
+            for(i=0; i<BLOCKSIZE-8; i++)
+            {
+               if(block1.indexblock.blocks[i] == lastB)
+               {
+                  block1.indexblock.blocks[i] = firstF;
+                  write_indexblock(&block1, bNum);
+                  break;
+               }
+            }
+            printf("Couldn't find that block number in the index block, #RIP\n");
+         break;
+         case 5: //free block
+            printf("okay, our last used block is a free block, which wrong. Go fix find_lsatUsedBlock()\n");
+         break;
+         default:
+            printf("block type value of the last used block wasn't even an actual block type\n");
+         break;
+      }
+      
+      //okay, now te tables are updated and we just have to actually move the blocks
+      remove_freeBlock(firstF);
+      writeBlock(diskNum, firstF, buffer); //the buffer was filled earlier with block contents
+      freeBlock(lastB);
+      
+   }
+   //done
+}

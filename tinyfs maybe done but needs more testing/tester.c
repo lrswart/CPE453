@@ -208,6 +208,15 @@ int main()
    }
    
    printf("\n\nDone checking Read/Write permissions and writeByte()\n\n");
+   
+   printBlocks(15);
+   
+   printf("Testing Defrag..................................\n\n");
+   tfs_defrag();
+   
+   printBlocks(15);
+   
+   
 }
 
 

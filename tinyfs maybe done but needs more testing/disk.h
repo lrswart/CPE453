@@ -7,6 +7,7 @@ typedef struct
 	char * filename;
 	FILE * file;
 	int num;
+   int numBlocks;
 } Disk;
 
 int openDisk(char *filename, int nBytes);
@@ -16,5 +17,7 @@ int getDiskNum(char* filename);
 int readBlock(int disk, int bNum, void *block);
 
 int writeBlock(int disk, int bNum, void *block);
+
+int getDiskNumBlocks(int disk);
 
 #endif

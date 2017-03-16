@@ -18,77 +18,6 @@ int cmpDiskNum(void*disk1, void*number)
    else return 0;
 }
 
-int find_lastBlock(int numBlocks) {
-   int i, currentBlock;
-   for (i = 0; i < numBlocks; i++) {
-      readBlock(diskNum, i, buff);
-      if (buff[0] != 5) { 
-         currentBlock = i;
-      }
-   }
-   return currentBlock;
-}
-
-int remove_freeBlock(int bNum) {
-   Block fBlock;
-   Block sBlock;
-   Block tempBlock;
-   unsigned char list, prev;
-   
-   read_superblock(&sBlock);
-   list = sBlock.superblock.firstFreeBlock;
-   read_freeBlock(&fBlock, bNum);
-   
-   if (list <= 0) {
-      return -1;
-   }
-   if (list == bNum) { 
-      sBlock.superblock.firstFreeBlock = fBlock.freeblock.next;
-      return list;
-   }
-   
-   while (list != bNum) {
-      prev = list;
-      read_freeBlock(&fBlock, list);
-      list = fBlock.freeblock.next;
-      if (list == 0) {
-         return -1; 
-      }
-   }
-   read_freeBlock(&fBlock, list);
-   tempBlock.freeblock.next = fBlock.freeblock.next;
-   write_freeBlock(&tempBlock, prev);
-   return list;
-}
-
-void tfs_defrag(int nBytes) {
-   int i, lastB, numBlocks = nBytes / BLOCKSIZE;
-   char buffer[BLOCKSIZE], buff[BLOCKSIZE];
-   for (i = 0; i < numBlocks; i++) {
-      readBlock(diskNum, i, buffer);
-      if (buff[0] == 5) {
-        
-         lastB = find_lastBlock(numBlocks); 
-         remove_freeBlock(i);
-         readBlock(diskNum, lastB, buff);
-         if (buff[0] == 2 && i > 1){ 
-         
-         }
-         if (buff[0] == 3) { 
-            read_indexBlock(lastB);
-            
-            write_indexBlock(i);
-            freeBlock(lastB)
-            
-         }
-         if(buff[0] == 4) {
-         
-         }
-      }
-     
-   }
-}
-
 int cmpDiskName(void*disk1, void*filename)
 {
    Disk * disk = (Disk*)disk1;
@@ -143,6 +72,7 @@ int openDisk(char *filename, int nBytes)
    nextDiskNum++;
    disk = malloc(sizeof(Disk));
    disk -> num = diskNum;
+   disk->numBlocks = nBytes / BLOCKSIZE;
    disk->filename = malloc(strlen(filename)+1);
    strcpy(disk->filename, filename);
    disk->file = file;
@@ -186,6 +116,23 @@ int getDiskNum(char * filename)
       return -1;
    }
    return d->num;
+}
+
+int getDiskNumBlocks(int disk)
+{
+   Disk * d;
+   int index;
+   cmpfun fun = &cmpDiskNum;
+   index = indexOf(dlist, &disk, fun);
+   if(index == -1)
+   {
+      printf("readBlock: file number not an open disk\n");
+      return -1; //file number not open
+   }
+   
+   d = (Disk*)get(dlist, index);
+   
+   return d->numBlocks;
 }
 
 int writeBlock(int disk, int bNum, void *block)
