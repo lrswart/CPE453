@@ -229,6 +229,32 @@ void read_freeblock(Block *block,  int bNum)
    (*block).freeblock.next = buf[2];
 }
 
+void tfs_displayFragments(int nBytes) {
+   int i, numBlocks = nBytes / BLOCKSIZE;
+   char buffer[BLOCKSIZE];
+   for (i = 0; i < numBlocks; i++) {
+      readBlock(diskNum, i, buffer);
+      switch(buffer[0]) {
+         case 1:
+            printf("1 ");
+            break;
+         case 2:
+            printf("2 ");
+            break;
+         case 3:
+            printf("3 ");
+            break;
+         case 4:
+            printf("4 ");
+            break;
+         case 5:
+            printf("0 ");
+            break;
+      }
+      if ((i + 1)%10 == 0) 
+         printf("\n");
+   }
+}
 
 void printBlocks(int num)
 {
