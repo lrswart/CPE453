@@ -7,7 +7,7 @@
 
 static Block block1;
 static Block block2;
-static diskNum = -1;
+static int diskNum = -1;
 static char buf[BLOCKSIZE];
 
 static ResourceTableEntry resourceTable[NUM_FDS];
@@ -124,7 +124,7 @@ void read_superblock(Block* block)
 
 }
 
-void read_filetable(Block* block, int bNum)
+int read_filetable(Block* block, int bNum)
 {
    int i,j;
    memset(block, 0, sizeof(Block));
@@ -137,12 +137,14 @@ void read_filetable(Block* block, int bNum)
    {
       //not an index block
       printf("bad file table identifier\n");
+      return -1;
    }
    
    if((*block).filetable.magicNum != 0x44)
    {
       //bad magic num
       printf("bad magic number\n");
+      return -1;
    }
    
    
@@ -157,10 +159,11 @@ void read_filetable(Block* block, int bNum)
       }
       (*block).filetable.blockNum[i] = buf[TABLEBNUMOFFSET + i];
    }
+   return 0;
 }
 
 
-void read_filedata(Block *block,  int bNum)
+int read_filedata(Block *block,  int bNum)
 {
    int i;
    memset(block, 0, sizeof(Block));
@@ -174,12 +177,14 @@ void read_filedata(Block *block,  int bNum)
    {
       //not a file data block
       printf("bad file data block identifier\n");
+      return -1;
    }
    
    if((*block).filedata.magicNum != 0x44)
    {
       //bad magic num
       printf("bad magic number\n");
+      return -1;
    }
    
    
@@ -187,9 +192,10 @@ void read_filedata(Block *block,  int bNum)
    {
       (*block).filedata.data[i] = buf[i+4];
    }
+   return 0;
 }
 
-void read_indexblock(Block *block,  int bNum)
+int read_indexblock(Block *block,  int bNum)
 {
    int i;
    memset(block, 0, sizeof(Block));
@@ -203,12 +209,14 @@ void read_indexblock(Block *block,  int bNum)
       //not an index block
       //assert(0);
       printf("bad index block identifier %d\n", (*block).indexblock.blockType);
+      return -1;
    }
    
    if((*block).indexblock.magicNum != 0x44)
    {
       //bad magic num
       printf("bad magic number\n");
+      return -1;
    }
    
    (*block).indexblock.size = buf[2];
@@ -218,13 +226,14 @@ void read_indexblock(Block *block,  int bNum)
    {
       (*block).indexblock.blocks[i] = buf[8+i];
    }
+   return 0;
 }
 
 void read_freeblock(Block *block,  int bNum)
 {
    memset(block, 0, sizeof(Block));
    readBlock(diskNum, bNum, buf);
-   (*block).freeblock.blockType =buf[0]; 
+   (*block).freeblock.blockType = buf[0]; 
    (*block).freeblock.magicNum = buf[1]; 
    (*block).freeblock.next = buf[2];
 }
@@ -425,6 +434,32 @@ int tfs_mkfs(char *filename, int nBytes)
    return 0;
 }
 
+int checkConsistency() {
+   int freeBlockNum;
+   read_superblock(&block1);
+   freeBlockNum = block1.superblock.firstFreeBlock;
+   read_freeblock(&block1, freeBlockNum);
+   //check free blocks for consistency
+   while (block1.freeblock.next != 0) {
+      if (block1.freeblock.blockType != 5 || block1.freeblock.magicNum != 0x44) {
+         printf("checkConsistency: Inconsistent free blocks\n");
+         return -1;
+      }
+      read_freeblock(&block1, block1.freeblock.next);
+   }
+   //check file tables for consistency
+   if (read_filetable(&block1, 1) < 0) {
+      printf("checkConsistnecy: Inconsistent file tables\n");
+      return -1;    
+   }
+   while (block1.filetable.next != 0) {
+      if (read_filetable(&block1, block1.filetable.next)) {
+         printf("checkConsistency: Inconsitent file tables\n");
+         return -1;
+      }
+   }
+  
+}
 
 int tfs_mount(char *diskname)
 {
@@ -436,8 +471,12 @@ int tfs_mount(char *diskname)
    
    diskNum = openDisk(diskname, 0);
    
-   //todo: error checking
-   
+   if (diskNum < 0) 
+      return -1; //todo: error checking
+
+   if (checkConsistency() < 0){
+      return -1;
+   }
    return 0;
 }
 
@@ -449,7 +488,7 @@ int tfs_unmount(void)
 
 fileDescriptor tfs_openFile(char *name)
 {
-   int i, j, fd, bNum;
+   int i, fd, bNum;
    read_superblock(&block1);
    
    bNum = block1.superblock.fileListBlock;
