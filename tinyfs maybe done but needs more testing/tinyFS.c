@@ -1139,3 +1139,79 @@ void tfs_defrag() {
    }
    //done
 }
+
+int tfs_rename(fileDescriptor FD, char*newName)
+{
+   int bNum, i;
+   
+   if(resourceTable[FD].valid == 0)
+   {
+      return -1; // bad FD
+   }
+   
+   bNum = 1; //the first file table
+   memcpy(resourceTable[FD].filename, newName, 8);
+   read_filetable(&block1, bNum);
+   while(1)
+   {
+      for(i=0; i< block1.filetable.size; i++) //loop through single file table for correct block number
+      {
+         if(block1.filetable.blockNum[i] == resourceTable[FD].indexBlock) //if the block number matches
+         {
+            memcpy(block1.filetable.fileName[i], newName, 8);
+            write_filetable(&block1, bNum);
+            return 0;
+         }
+      }
+
+      if(block1.filetable.next != 0)   //if there is a next file table
+      {
+         bNum = block1.filetable.next;    //
+         read_filetable(&block1, block1.filetable.next); 
+      }
+      else
+      {
+         //never found that inde block's block number in any file table
+         printf("Couldn't find that block number in the file table, maybe resource table is wrong?\n");
+         return -1;
+      }
+   }
+}
+
+void tfs_readdir()
+{
+   int bNum, i, j;
+   
+   bNum = 1; //the first file table
+   read_filetable(&block1, bNum);
+   printf("File List:\n\n");
+   while(1)
+   {
+      for(i=0; i<block1.filetable.size; i++)
+      {
+         for(j=0; j<8; j++)
+         {
+            if(block1.filetable.fileName[i][j] == 0)
+            {
+               break;
+            }
+            else
+            {
+               printf("%c", block1.filetable.fileName[i][j]);
+            }
+         }               
+         printf("\n");
+      }
+      if(block1.filetable.next != 0)   //if there is a next file table
+      {
+         bNum = block1.filetable.next;    //
+         read_filetable(&block1, block1.filetable.next); 
+      }
+      else
+      {
+         printf("\nEnd of File List\n");
+         return;
+      }
+   }
+   
+}

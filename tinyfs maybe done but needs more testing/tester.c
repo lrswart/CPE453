@@ -11,13 +11,14 @@ int main()
    int check, i, fd1, fd2, fd3, fd4;
    char buf1[500];
    char buf2[150];
+   char name[8];
    char c;
    
-   check = tfs_mkfs("disk1", DEFAULT_DISK_SIZE);
+   check = tfs_mkfs("disk1", DEFAULT_DISK_SIZE*5);
    
    assert(check == 0);
    
-   check = tfs_mkfs("disk2", DEFAULT_DISK_SIZE);
+   check = tfs_mkfs("disk2", DEFAULT_DISK_SIZE*5);
    
    assert(check == 0);
    
@@ -217,6 +218,22 @@ int main()
    tfs_displayFragments();
    printBlocks(15);
    
+   printf("\n\nTesting Rename..................................\n\n");
+   tfs_rename(fd1, "new_name");
+   printBlocks(6);
+   
+   printf("\n\nTesting readdir..................................\n\n");
+   
+   strcpy(name, "file_ ");
+   c = 'A';
+   for(i=0; i<50; i++)
+   {
+      name[5] = c;
+      tfs_closeFile(tfs_openFile(name));
+      c += 1;
+   }
+   
+   tfs_readdir();
    
 }
 
