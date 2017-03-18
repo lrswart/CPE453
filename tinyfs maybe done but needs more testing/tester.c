@@ -61,14 +61,15 @@ int main()
    }
    
    //then we write that stuff to the files
-   printf("\n\nWriting Files..........................................................\n\n");
+   printf("\n\nWriting Files..........................................................\n");
+   printf("Notice files 1-4 are in the file table, and have index blocks pointing to their data blocks\n\n");
    tfs_writeFile(fd1, buf1, 500);
    tfs_writeFile(fd2, buf1, 500);
    tfs_writeFile(fd3, buf2, 150);
    tfs_writeFile(fd4, buf2, 150);
    
 
-   printBlocks(5);   //print the first five blocks of the disk to make sure index files were properly created
+   printBlocks(12);   //print the first five blocks of the disk to make sure index files were properly created
    
    
    
@@ -128,11 +129,13 @@ int main()
       assert(c == buf2[i]); 
    }
    
-   printf("\n\nDeleting Files..........................................................\n\n");
+   printf("\n\nDeleting Files..........................................................\n");
+   printf("Notice files 1 and 2 are no longer in the file table, and no longer have index blocks or data blocks.\n\n");
+
    tfs_deleteFile(fd1);
    tfs_deleteFile(fd2);
    
-   printBlocks(10);     
+   printBlocks(12);     
    //this print out shows that the files were moved up in the file table and that the free
    //blocks properly point to each other after two files have been deleted
    
@@ -145,7 +148,9 @@ int main()
    
    // Testing Read Only functions
    
-   printf("\ntesting Read Only stuff........................................\n\n");
+   printf("\ntesting Read Only stuff........................................\n");
+   printf("Notice file1 has READ ONLY attribute. Attempts to write to it fail.\n\n");
+
    
    //make files 1 and 2 like before
    fd1 = tfs_openFile("file1");
@@ -186,7 +191,8 @@ int main()
    }
    
    
-   
+   printf("\ntesting Write Byte........................................\n");
+   printf("Extra byte added in file1's data block between lowercase c and d, look closely, it's there\n");
    check = tfs_writeByte(fd1, 100, 151); //write 151 in the 100th position of file1
    assert(check == 0);
    
@@ -208,21 +214,31 @@ int main()
       assert(c == (char)(i-1));
    }
    
+   
+   printBlocks(15);
+   
    printf("\n\nDone checking Read/Write permissions and writeByte()\n\n");
    
-   printBlocks(15);
    
+   printf("Testing Defrag.....................................................\n\n");
+   printf("Here the tfs_displayFragments() function is used to show the defragmentation. 0 for free blocks, other numbers for other block types\n");
+   
+   printf("\nBefore:\n");
    tfs_displayFragments();
-   printf("Testing Defrag..................................\n\n");
+   printf("\nAfter:\n");
    tfs_defrag();
    tfs_displayFragments();
-   printBlocks(15);
    
-   printf("\n\nTesting Rename..................................\n\n");
+   printf("\n\nPrint out the blocks to show their data hasn't been altered by the defrag...............................\n\n");
+   printBlocks(10);
+   
+   printf("\n\nTesting Rename................................................................\n");
    tfs_rename(fd1, "new_name");
+   printf("\nnotice the name change for file1 in the  file table\n\n");
    printBlocks(6);
    
-   printf("\n\nTesting readdir..................................\n\n");
+   printf("\n\nTesting readdir............................................................\n\n");
+   printf("\nCreated 50 new files to show that they all print out in a list when tfs_readdir is called..............\n");
    
    strcpy(name, "file_ ");
    c = 'A';
@@ -235,6 +251,8 @@ int main()
    
    tfs_readdir();
    
+   
+   printf("\nEnd of demonstration\n");
 }
 
 

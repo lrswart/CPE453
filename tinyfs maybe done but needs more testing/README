@@ -1,6 +1,21 @@
-For file allocation I used Indexed Allocation. The structure IndexBlock holds all blocks that belong to a file.
+TinyFS - Nick Walker and Laura Swart
+
+
+
+For file allocation we used Indexed Allocation. The structure IndexBlock holds all blocks that belong to a file.
 
 All file index blocks are stored in a single FileTable structure, always put in block 1. FileTable holds 28 filename/blocknumber pairs, and a blocknumber for the next FileTable if more than 28 files are stored on the disk. (more than 28 files needs testing)
 
 Free blocks are kept track of using a linked list approach. The superblock holds the location of the first free block, and every free block holds the position of the next free block in the list. When blocks are freed they are put at the head of the list, which means the superblock is rewritten so that its first free block field holds the location of the newly freed block.
+
+Extra Features:
+
+File Consistency Check
+
+Read Only and writeByte Support - In the demo a file is set to read only and then a write is attempted and it fails. Then tfs_writeByte() is called and writes one character in the middle of a file at the 100th position, when the file contents are printed you can see between the 'c' and the 'd' in the file a new byte has been inserted. Additionally the file size increases by one byte.
+
+File Listing and Renaming - In the demo, tfs_rename() is called to change the name of a file on the disk from "file1" to "new_name". Then 50 more files are created and then tfs_readdir() is called, listing out all the files on the disk. 
+
+Fragmentation and Defragmentation - tfs_defrag() is called on a fragmented disk in the demo, tfs_displayFragments() is called before and after the defragging to show that the blocks all get moved toward the front of the disk.
+
 
