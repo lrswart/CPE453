@@ -1,4 +1,4 @@
-#builds tinyFS.c disk.c tinyFS.h disk.h and fstest
+#builds tinyFS.c libDisk.c tinyFS.h and tester.c
 
-tinyFS: tinyFS.c disk.c tester.c LinkedList.c
-	gcc -o tinyFS tinyFS.c disk.c LinkedList.c tester.c -Wall
+tinyFsDemo: tinyFS.c libDisk.c tinyFsDemo.c LinkedList.c
+	gcc -o tinyFsDemo -L. -libDisk -libTinyFS tinyFS.c libDisk.c LinkedList.c tinyFsDemo.c -Wall
