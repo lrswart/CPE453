@@ -4,6 +4,7 @@
 #include <assert.h>
 #include "tinyFS.h"
 #include "disk.h"
+#include "TinyFS_errno.h"
 
 static Block block1;
 static Block block2;
@@ -137,14 +138,14 @@ int read_filetable(Block* block, int bNum)
    {
       //not an index block
       printf("bad file table identifier\n");
-      return -1;
+      return EBLOCKID;
    }
    
    if((*block).filetable.magicNum != 0x44)
    {
       //bad magic num
       printf("bad magic number\n");
-      return -1;
+      return EMAGICNUM;
    }
    
    
@@ -177,14 +178,14 @@ int read_filedata(Block *block,  int bNum)
    {
       //not a file data block
       printf("bad file data block identifier\n");
-      return -1;
+      return EBLOCKID;
    }
    
    if((*block).filedata.magicNum != 0x44)
    {
       //bad magic num
       printf("bad magic number\n");
-      return -1;
+      return EMAGICNUM;
    }
    
    
@@ -209,14 +210,14 @@ int read_indexblock(Block *block,  int bNum)
       //not an index block
       //assert(0);
       printf("bad index block identifier %d\n", (*block).indexblock.blockType);
-      return -1;
+      return EBLOCKID;
    }
    
    if((*block).indexblock.magicNum != 0x44)
    {
       //bad magic num
       printf("bad magic number\n");
-      return -1;
+      return EMAGICNUM;
    }
    
    (*block).indexblock.size = buf[2];
@@ -250,13 +251,13 @@ void tfs_displayFragments() {
             printf("1 ");
             break;
          case 2:
-            printf("2 ");
+            printf("1 ");
             break;
          case 3:
-            printf("3 ");
+            printf("1 ");
             break;
          case 4:
-            printf("4 ");
+            printf("1 ");
             break;
          case 5:
             printf("0 ");
@@ -357,7 +358,7 @@ int firstUnusedFD()
          return i;
       }
    }
-   return -1; //no available FDs
+   return EDISKFULL; //no available FDs
 }
 
 int getFreeBlock()
@@ -369,7 +370,7 @@ int getFreeBlock()
    read_superblock(&sblock);
    if(sblock.superblock.firstFreeBlock == 0)
    {
-      return -1; //no free blocks
+      return EDISKFULL; //no free blocks
    }
    read_freeblock(&fblock, sblock.superblock.firstFreeBlock);
    temp = sblock.superblock.firstFreeBlock;
@@ -445,22 +446,22 @@ int checkConsistency() {
    while (block1.freeblock.next != 0) {
       if (block1.freeblock.blockType != 5 || block1.freeblock.magicNum != 0x44) {
          printf("checkConsistency: Inconsistent free blocks\n");
-         return -1;
+         return ECONSISTENCY;
       }
       read_freeblock(&block1, block1.freeblock.next);
    }
    //check file tables for consistency
    if (read_filetable(&block1, 1) < 0) {
       printf("checkConsistnecy: Inconsistent file tables\n");
-      return -1;    
+      return ECONSISTENCY;    
    }
    while (block1.filetable.next != 0) {
       if (read_filetable(&block1, block1.filetable.next)) {
          printf("checkConsistency: Inconsitent file tables\n");
-         return -1;
+         return ECONSISTENCY;
       }
    }
-  
+   return 0; 
 }
 
 int tfs_mount(char *diskname)
@@ -468,17 +469,18 @@ int tfs_mount(char *diskname)
    if(diskNum != -1)
    {
       //disk already mounted, return error
-      return -1;
+      return EMOUNTERROR;
    }
    
    diskNum = openDisk(diskname, 0);
    
    if (diskNum < 0) 
-      return -1; //todo: error checking
+      return EMOUNTERROR; //todo: error checking
 
-   if (checkConsistency() < 0){
-      return -1;
-   }
+   if (checkConsistency() < 0){  
+      printf(" consistency check failed\n");
+      return EMOUNTERROR;
+   } //calling function from tester instead
    return 0;
 }
 
@@ -622,7 +624,7 @@ int tfs_closeFile(fileDescriptor FD)
 {
    if(resourceTable[FD].valid == 0)
    {
-      return -1; //file already closed
+      return EBADFD; //file already closed
    }
    
    resourceTable[FD].valid = 0;
@@ -633,7 +635,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size)
    int i, position, numBlocks;
    if(resourceTable[FD].valid == 0)
    {
-      return -1; //bad FD
+      return EBADFD; //bad FD
    }
    
    //get index block from disk using resource table index block value
@@ -641,7 +643,7 @@ int tfs_writeFile(fileDescriptor FD,char *buffer, int size)
    
    if(block1.indexblock.rw == RO)
    {
-      return -1; // this block is read only
+      return ERO; // this block is read only
    }
    //free up space from old file
    for(i=0; i<block1.indexblock.size; i++)
@@ -711,14 +713,14 @@ int tfs_deleteFile(fileDescriptor FD)
    
    if(resourceTable[FD].valid == 0)
    {
-      return -1; //bad FD
+      return EBADFD; //bad FD
    }
    
    read_indexblock(&block1, resourceTable[FD].indexBlock);
    
    if(block1.indexblock.rw == RO)
    {
-      return -1; // this block is read only
+      return ERO; // this block is read only
    }
    
    //first free all the data blocks of the file
@@ -824,15 +826,15 @@ int tfs_readByte(fileDescriptor FD, char *buffer)
    unsigned int blockOffset;
    if(resourceTable[FD].valid == 0)
    {
-      return -1; // bad FD
+      return EBADFD; // bad FD
    }
    if(resourceTable[FD].filePosition == resourceTable[FD].fileLength)
    {
-      return -1; // end of file
+      return EEOF; // end of file
    }
    if(resourceTable[FD].filePosition > resourceTable[FD].fileLength)
    {
-      return -1; // bad file position
+      return EBADFD; // bad file position
    }
    
    blockIndex = resourceTable[FD].filePosition / DATA_BLOCKSIZE; // find out which block of the file to look in
@@ -851,12 +853,12 @@ int tfs_seek(fileDescriptor FD, int offset)
 {
    if(resourceTable[FD].valid == 0)
    {
-      return -1; // bad FD
+      return EBADFD; // bad FD
    }
    
    if(offset >= resourceTable[FD].fileLength)
    {
-      return -1; // offset is past end of file
+      return EBADFILE; // offset is past end of file
    }
    resourceTable[FD].filePosition = offset;
    return 0;
@@ -907,7 +909,7 @@ int changePermission(char * name, int permission)
       {
          //If the file doesn't exist, don't create one.
          //instead, throw an error because there's no file to set the read/write permission of.
-         return -1; //file with that name does not exist
+         return EBADFILENAME; //file with that name does not exist
       }
    }
 }
@@ -984,7 +986,7 @@ int find_lastUsedBlock() {
 }
 
 int find_firstFreeBlock() {
-   int i, currentBlock;
+   int i;
    char buff[256];
    int numBlocks;
    
@@ -995,7 +997,7 @@ int find_firstFreeBlock() {
          return i;
       }
    }
-   return -1; //no free blocks found
+   return EDISKFULL; //no free blocks found
 }
 
 //removes a free block at spot bNum from the free block linked list
@@ -1010,7 +1012,7 @@ int remove_freeBlock(int bNum) {
    read_freeblock(&fBlock, bNum);
    
    if (list <= 0) {
-      return -1;
+      return EFREEBLOCK;
    }
    if (list == bNum) { 
       sBlock.superblock.firstFreeBlock = fBlock.freeblock.next;
@@ -1023,7 +1025,7 @@ int remove_freeBlock(int bNum) {
       read_freeblock(&fBlock, list);
       list = fBlock.freeblock.next;
       if (list == 0) {
-         return -1; 
+         return EFREEBLOCK; 
       }
    }
    read_freeblock(&fBlock, list);
@@ -1146,7 +1148,7 @@ int tfs_rename(fileDescriptor FD, char*newName)
    
    if(resourceTable[FD].valid == 0)
    {
-      return -1; // bad FD
+      return EBADFD; // bad FD
    }
    
    bNum = 1; //the first file table
@@ -1173,7 +1175,7 @@ int tfs_rename(fileDescriptor FD, char*newName)
       {
          //never found that inde block's block number in any file table
          printf("Couldn't find that block number in the file table, maybe resource table is wrong?\n");
-         return -1;
+         return EDISK;
       }
    }
 }

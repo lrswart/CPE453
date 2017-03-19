@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-
+#include "TinyFS_errno.h"
 #include "tinyFS.h"
 
 

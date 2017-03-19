@@ -10,7 +10,7 @@ Free blocks are kept track of using a linked list approach. The superblock holds
 
 Extra Features:
 
-File Consistency Check
+File Consistency Check, checkConsistency() is built into tfs_mount mount will fail if consistency fails, will print error message only if consistency check fails.
 
 Read Only and writeByte Support - In the demo a file is set to read only and then a write is attempted and it fails. Then tfs_writeByte() is called and writes one character in the middle of a file at the 100th position, when the file contents are printed you can see between the 'c' and the 'd' in the file a new byte has been inserted. Additionally the file size increases by one byte.
 

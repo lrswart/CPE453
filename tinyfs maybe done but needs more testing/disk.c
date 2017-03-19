@@ -3,6 +3,7 @@
 #include <string.h>
 #include "disk.h"
 #include "LinkedList.h"
+#include "TinyFS_errno.h"
 
 static ListNode *dlist;
 static int nextDiskNum;
@@ -45,13 +46,13 @@ int openDisk(char *filename, int nBytes)
       file = fopen(filename, "r+");   //if not, open the file and add it to the disk list
       if(file == NULL)
       {
-         return -1;
+         return EDISK;
       }
 
    }
    else if(nBytes < BLOCKSIZE)
    {
-      return -1;
+      return EDISK;
    }
    
    else
@@ -60,7 +61,7 @@ int openDisk(char *filename, int nBytes)
       file = fopen(filename, "w+");
       if(file == NULL)
       {
-         return -1;
+         return EFOPEN;
       }
       for(i=0; i<nBytes; i++)
       {
@@ -89,7 +90,7 @@ int readBlock(int disk, int bNum, void *block)
    if(index == -1)
    {
       printf("readBlock: file number not an open disk\n");
-      return -1; //file number not open
+      return EFREAD; //file number not open
    }
    
    d = (Disk*)get(dlist, index);
@@ -98,7 +99,7 @@ int readBlock(int disk, int bNum, void *block)
    if(fread(block, 1, BLOCKSIZE, d->file) != BLOCKSIZE)
    {
       printf("buffer too small\n");
-      return -1; //couldn't read full block from file
+      return EFREAD; //couldn't read full block from file
    }
 }
 
@@ -113,7 +114,7 @@ int getDiskNum(char * filename)
    if(d == NULL)
    {
       //this file hasn't been opened yet
-      return -1;
+      return EDISK;
    }
    return d->num;
 }
@@ -127,7 +128,7 @@ int getDiskNumBlocks(int disk)
    if(index == -1)
    {
       printf("readBlock: file number not an open disk\n");
-      return -1; //file number not open
+      return EDISK; //file number not open
    }
    
    d = (Disk*)get(dlist, index);
@@ -144,7 +145,7 @@ int writeBlock(int disk, int bNum, void *block)
    if(index == -1)
    {
       printf("file number not an open disk\n");
-      return -1; //file number not open
+      return EFWRITE; //file number not open
    }
    
    d = (Disk*)get(dlist, index);
@@ -152,7 +153,7 @@ int writeBlock(int disk, int bNum, void *block)
    fseek(d->file, bNum*BLOCKSIZE, SEEK_SET);
    if(fwrite(block, 1, BLOCKSIZE, d->file) != BLOCKSIZE)
    {
-      printf("couldn't read full block from file\n");
-      return -1; //couldn't read full block from file
+      printf("couldn't write full block from file\n");
+      return EFWRITE; //couldn't write full block from file
    }
 }
